@@ -1,0 +1,65 @@
+{
+  "name": "formly-form-viewer-material",
+  "version": "0.0.1",
+  "author": "Juan Jose Arroyo Rivera",
+  "description": "Standalone component to render a customizable FormlyForm",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/JJKid/formly-form-viewer-material.git"
+  },
+  "scripts": {
+    "ng": "ng",
+    "start": "ng serve",
+    "build": "ng-packagr -p ng-package.json",
+    "watch": "ng build --watch --configuration development",
+    "test": "ng test",
+    "lint": "ng lint"
+  },
+  "peerDependencies": {
+    "@angular/animations": "^19.2.19",
+    "@angular/cdk": "^19.2.19",
+    "@angular/common": "^19.2.19",
+    "@angular/compiler": "^19.2.19",
+    "@angular/core": "^19.2.19",
+    "@angular/forms": "^19.2.19",
+    "@angular/material": "^19.2.19",
+    "@angular/platform-browser": "^19.2.19",
+    "@angular/platform-browser-dynamic": "^19.2.19",
+    "@angular/router": "^19.2.19",
+    "@ngx-formly/core": "^7.0.1",
+    "@ngx-formly/material": "^7.0.1",
+    "rxjs": "~7.8.0",
+    "zone.js": "~0.15.0"
+  },
+  "dependencies": {
+    "tslib": "^2.3.0"
+  },
+  "devDependencies": {
+    "@angular-devkit/build-angular": "^19.2.19",
+    "@angular-eslint/builder": "^19.2.1",
+    "@angular-eslint/eslint-plugin": "^19.2.1",
+    "@angular-eslint/eslint-plugin-template": "^19.2.1",
+    "@angular-eslint/schematics": "^19.2.1",
+    "@angular-eslint/template-parser": "^19.2.1",
+    "@angular/cli": "^19.2.19",
+    "@angular/compiler-cli": "^19.2.19",
+    "@angular/language-service": "^19.2.19",
+    "@types/jasmine": "~5.1.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint": "^8.57.0",
+    "eslint-plugin-import": "^2.29.1",
+    "eslint-plugin-jsdoc": "^48.2.1",
+    "eslint-plugin-prefer-arrow": "1.2.2",
+    "jasmine-core": "~5.1.0",
+    "jasmine-spec-reporter": "~5.0.0",
+    "karma": "~6.4.0",
+    "karma-chrome-launcher": "~3.2.0",
+    "karma-coverage": "~2.2.0",
+    "karma-jasmine": "~5.1.0",
+    "karma-jasmine-html-reporter": "~2.1.0",
+    "ng-packagr": "^19.2.0",
+    "typescript": "~5.6.3"
+  },
+  "homepage": "https://github.com/JJKid/formly-form-viewer-material"
+}
