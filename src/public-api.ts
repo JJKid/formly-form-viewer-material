@@ -7,6 +7,7 @@ export * from './app/formly-types/viewer-formly-matrix.type';
 export * from './app/formly-types/viewer-formly-select-inline.type';
 export * from './app/formly-types/viewer-formly-checkbox-with-text.type';
 export * from './app/formly-types/viewer-formly-multiple-input.type';
+export * from './app/formly-types/viewer-formly-ranking.type';
 export * from './app/formly-types/viewer-formly-stepper.type';
 export * from './app/formly-types/viewer-formly-gender.type';
 export * from './app/formly-types/viewer-formly-n-option-radio.type';

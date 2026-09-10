@@ -112,7 +112,7 @@ import { getFormlyViewerRuntimeI18nConfig } from '../formly-types/formly-viewer-
     }
   `]
 })
-export class FormlyViewerComponent implements OnInit, OnChanges {
+export class FormlyFormViewerComponent implements OnInit, OnChanges {
   @Input() form: FormGroup = new FormGroup({});
   @Input() fields: FormlyFieldConfig[] = [];
   @Input() model: any = {};
@@ -133,6 +133,7 @@ export class FormlyViewerComponent implements OnInit, OnChanges {
     'selectInline',
     'checkboxWithText',
     'multiple-input',
+    'ranking',
   ]);
   private readonly viewerWrappedTypes = new Set([
     'input',
@@ -153,6 +154,7 @@ export class FormlyViewerComponent implements OnInit, OnChanges {
     'selectInline',
     'checkboxWithText',
     'multiple-input',
+    'ranking',
   ]);
 
   ngOnInit() {

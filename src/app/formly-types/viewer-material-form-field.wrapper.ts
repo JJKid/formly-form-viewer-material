@@ -142,7 +142,7 @@ export class ViewerMaterialFormFieldWrapper
     this.focusMonitor.stopMonitoring(this.elementRef);
   }
 
-  get props(): FormlyFieldProps {
+  override get props(): FormlyFieldProps {
     return (this.field?.props ?? {}) as FormlyFieldProps;
   }
 

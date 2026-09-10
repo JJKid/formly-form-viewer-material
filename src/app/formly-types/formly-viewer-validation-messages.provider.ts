@@ -87,12 +87,12 @@ export const DEFAULT_FORMLY_VIEWER_I18N_DICTIONARIES: Record<
   FormlyViewerI18nDictionary
 > = {
   en: {
-    validations: DEFAULT_FORMLY_VIEWER_I18N_VALIDATION_DICTIONARIES.en,
-    ui: DEFAULT_FORMLY_VIEWER_UI_DICTIONARIES.en,
+    validations: DEFAULT_FORMLY_VIEWER_I18N_VALIDATION_DICTIONARIES['en'],
+    ui: DEFAULT_FORMLY_VIEWER_UI_DICTIONARIES['en'],
   },
   es: {
-    validations: DEFAULT_FORMLY_VIEWER_I18N_VALIDATION_DICTIONARIES.es,
-    ui: DEFAULT_FORMLY_VIEWER_UI_DICTIONARIES.es,
+    validations: DEFAULT_FORMLY_VIEWER_I18N_VALIDATION_DICTIONARIES['es'],
+    ui: DEFAULT_FORMLY_VIEWER_UI_DICTIONARIES['es'],
   },
 };
 
@@ -166,11 +166,9 @@ type ViewerValidator = (
   options?: Record<string, unknown> | null,
 ) => boolean;
 
-const asFormlyValidation = (validator: ViewerValidator) => validator as unknown as (
-  control: AbstractControl,
-  field?: FormlyFieldConfig,
-  options?: Record<string, unknown> | null,
-) => unknown;
+type FormlyValidation = NonNullable<ConfigOption['validators']>[number]['validation'];
+
+const asFormlyValidation = (validator: ViewerValidator): FormlyValidation => validator as unknown as FormlyValidation;
 
 const numericFormatValidator: ViewerValidator = (control) => {
   const value = control?.value;

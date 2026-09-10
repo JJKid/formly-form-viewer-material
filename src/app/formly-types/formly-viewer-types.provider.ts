@@ -4,6 +4,7 @@ import { ViewerFormlyGenderType } from './viewer-formly-gender.type';
 import { ViewerFormlyMatrixType } from './viewer-formly-matrix.type';
 import { ViewerFormlyMultipleInputType } from './viewer-formly-multiple-input.type';
 import { ViewerFormlyNOptionRadioType } from './viewer-formly-n-option-radio.type';
+import { ViewerFormlyRankingType } from './viewer-formly-ranking.type';
 import { ViewerFormlyRepeatType } from './viewer-formly-repeat.type';
 import { ViewerFormlySelectInlineType } from './viewer-formly-select-inline.type';
 import { ViewerFormlyStepperType } from './viewer-formly-stepper.type';
@@ -24,6 +25,7 @@ export function withFormlyViewerTypes(): ConfigOption {
       { name: 'selectInline', component: ViewerFormlySelectInlineType, wrappers: ['viewer-form-field'] },
       { name: 'checkboxWithText', component: ViewerFormlyCheckboxWithTextType, wrappers: ['viewer-form-field'] },
       { name: 'multiple-input', component: ViewerFormlyMultipleInputType, wrappers: ['viewer-form-field'] },
+      { name: 'ranking', component: ViewerFormlyRankingType, wrappers: ['viewer-form-field'] },
       { name: 'stepper', component: ViewerFormlyStepperType },
       { name: 'nOptionRadio', component: ViewerFormlyNOptionRadioType, wrappers: ['viewer-form-field'] },
       { name: 'gender', component: ViewerFormlyGenderType, wrappers: ['viewer-form-field'] },
@@ -39,6 +41,7 @@ export const FORMLY_VIEWER_SUPPORTED_TYPES = [
   'selectInline',
   'checkboxWithText',
   'multiple-input',
+  'ranking',
   'stepper',
   'nOptionRadio',
   'gender',

@@ -1,0 +1,7 @@
+node_modules
+.angular
+coverage
+.tmp
+tmp
+*.tgz
+.DS_Store

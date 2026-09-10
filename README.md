@@ -2,20 +2,11 @@
 
 Libreria Angular de render para formularios Formly con Material.
 
-## Que hace
+## Proposito
 
-- registra tipos custom de Formly
-- renderiza `FormlyFieldConfig`
-- expone i18n para UI y validaciones
+Esta libreria contiene el viewer visual para formularios Formly con Angular Material. Registra los tipos personalizados que necesita el proyecto, expone el componente publico `FormlyFormViewerComponent` y permite renderizar un arreglo `FormlyFieldConfig[]` dentro de una app Angular.
 
-## Que no hace
-
-- no se conecta a MongoDB
-- no se conecta a CouchDB
-- no hace sync offline
-- no maneja auth
-
-Esos concerns viven fuera de esta libreria.
+La lectura de catalogo, la autorizacion publica, el guardado local y la sincronizacion de respuestas se configuran desde la app host con `formly-form-utils`.
 
 ## Integracion esperada
 
@@ -35,6 +26,22 @@ FormlyModule.forRoot({
   }),
 })
 ```
+
+## Compatibilidad
+
+| Elemento | Version/rango para `formly-form-viewer-material@0.0.1` |
+| --- | --- |
+| `formly-form-viewer-material` | `0.0.1` |
+| Angular | `^19.2.25` |
+| Angular CDK/Material | `^19.2.19` |
+| `@ngx-formly/core` / `@ngx-formly/material` | `^7.0.1` |
+| RxJS | `~7.8.0` |
+| TypeScript | `~5.6.x` |
+| `zone.js` | `~0.15.0` |
+
+El componente publico es `FormlyFormViewerComponent` y el selector se mantiene como `formly-form-viewer`.
+
+Nota de auditoria: `npm run build`, `npm test -- --watch=false --browsers=ChromeHeadless` y `npm pack --dry-run` sobre `dist/formly-form-viewer-material` pasan. `npm audit` no queda limpio en Angular 19; una version security-clean requeriria una migracion mayor.
 
 ## Desarrollo
 
@@ -62,6 +69,8 @@ npm install
 npm run build
 ```
 
+Un host minimo Angular sirve para probar que una app externa puede consumir esta libreria sin importar codigo del editor de Form Builder. Debe instalar el paquete, registrar Formly con `withFormlyViewerTypes()`, renderizar `FormlyFormViewerComponent` y pasarle un arreglo `FormlyFieldConfig[]` de prueba.
+
 ## Publicacion
 
 ```bash
@@ -71,6 +80,4 @@ cd dist/formly-form-viewer-material
 npm publish --access public
 ```
 
-## Nota de arquitectura
-
-Cualquier documentacion o integracion que describa a esta libreria con acceso directo a CouchDB o MongoDB queda deprecada.
+Publica desde `dist/formly-form-viewer-material`, no desde la raiz del repo. La raiz contiene archivos de desarrollo que no deben formar parte del paquete npm consumible.

@@ -1,17 +1,18 @@
 import { Component } from '@angular/core';
 import { FormGroup, ReactiveFormsModule } from '@angular/forms';
 import { FormlyFieldConfig } from '@ngx-formly/core';
-import { FormlyViewerComponent } from './formly-form-viewer/formly-form-viewer.component';
+import { FormlyFormViewerComponent } from './formly-form-viewer/formly-form-viewer.component';
 
 @Component({
   selector: 'app-root',
   templateUrl: 'app.component.html',
   styleUrls: ['app.component.scss'],
   standalone: true,
-  imports: [ReactiveFormsModule, FormlyViewerComponent],
+  imports: [ReactiveFormsModule, FormlyFormViewerComponent],
 })
 export class AppComponent {
   form = new FormGroup({});
+  submittedModel: unknown = null;
   model = {
     name: 'Juan',
     email: 'juan@example.com',
@@ -46,6 +47,6 @@ export class AppComponent {
   ];
 
   onSubmit(model: any) {
-    console.log('submit', model);
+    this.submittedModel = model;
   }
 }

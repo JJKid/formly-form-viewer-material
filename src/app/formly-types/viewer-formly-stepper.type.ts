@@ -640,7 +640,7 @@ export class ViewerFormlyStepperType extends FieldType<FieldTypeConfig<StepperPr
 
   private get validationDictionary(): FormlyViewerValidationMessagesDictionary {
     return DEFAULT_FORMLY_VIEWER_I18N_VALIDATION_DICTIONARIES[this.resolveLanguage()]
-      ?? DEFAULT_FORMLY_VIEWER_I18N_VALIDATION_DICTIONARIES.en;
+      ?? DEFAULT_FORMLY_VIEWER_I18N_VALIDATION_DICTIONARIES['en'];
   }
 
   private resolveBaseStepperMessages(): FormlyViewerStepperUiMessages {
@@ -650,7 +650,7 @@ export class ViewerFormlyStepperType extends FieldType<FieldTypeConfig<StepperPr
       return fromFieldProps;
     }
     return DEFAULT_FORMLY_VIEWER_UI_DICTIONARIES[locale]?.stepper
-      ?? DEFAULT_FORMLY_VIEWER_UI_DICTIONARIES.en.stepper;
+      ?? DEFAULT_FORMLY_VIEWER_UI_DICTIONARIES['en'].stepper;
   }
 
   private detectMobileViewport(): boolean {
@@ -925,7 +925,10 @@ export class ViewerFormlyStepperType extends FieldType<FieldTypeConfig<StepperPr
     }
 
     if (Array.isArray(field.fieldGroup) && field.fieldGroup.length > 0) {
-      return field.fieldGroup.flatMap((child) => this.collectSelectedOptionLabels(child));
+      return field.fieldGroup.reduce<string[]>(
+        (labels, child) => labels.concat(this.collectSelectedOptionLabels(child)),
+        [],
+      );
     }
 
     const options = Array.isArray(field.props?.['options']) ? (field.props?.['options'] as Array<Record<string, unknown>>) : [];
