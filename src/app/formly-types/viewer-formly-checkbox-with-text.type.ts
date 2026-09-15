@@ -7,6 +7,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MATERIAL_WRAPPED_FIELD_DEFAULT_OPTIONS } from './material-wrapper-default-options';
 import { FormlyViewerUiMessagesDictionary } from './formly-viewer-ui-messages';
+import type { SurveyStructureOtherResponse, SurveyStructureResponseEncoding } from 'survey-structure';
 
 interface CheckboxWithTextOption {
   code?: string;
@@ -24,6 +25,9 @@ interface CheckboxWithTextProps extends FormlyFieldProps {
   locale?: string;
   viewerUi?: FormlyViewerUiMessagesDictionary;
   options?: CheckboxWithTextOption[];
+  otherWithComment?: boolean;
+  otherResponse?: SurveyStructureOtherResponse;
+  responseEncoding?: SurveyStructureResponseEncoding;
 }
 
 @Component({
@@ -49,12 +53,17 @@ interface CheckboxWithTextProps extends FormlyFieldProps {
           <input
             matInput
             type="text"
-            [disabled]="option.disabled || formControl.disabled"
+            [disabled]="option.disabled || formControl.disabled || !isSelected(resolveOptionValue(option, i))"
             [value]="getComment(option, i)"
             [placeholder]="commentPlaceholder"
             (focus)="onCommentFocus(option, i)"
             (input)="updateComment(option, i, toText($any($event.target).value))"
           />
+        </mat-form-field>
+        <mat-form-field class="ffu-comment-field" appearance="outline" *ngIf="props.otherWithComment && isOtherOption(option, i)">
+          <mat-label>{{ otherLabel }}</mat-label>
+          <input matInput type="text" [disabled]="formControl.disabled || !isSelected(resolveOptionValue(option, i))"
+            [value]="otherValue" (input)="updateOtherValue(toText($any($event.target).value))" />
         </mat-form-field>
       </div>
     </section>
@@ -100,7 +109,6 @@ interface CheckboxWithTextProps extends FormlyFieldProps {
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ViewerFormlyCheckboxWithTextType extends FieldType<FieldTypeConfig<CheckboxWithTextProps>> implements OnInit {
-  private readonly commentsSuffix = '__comments';
   override defaultOptions = MATERIAL_WRAPPED_FIELD_DEFAULT_OPTIONS;
 
   get showLabel(): boolean {
@@ -111,7 +119,12 @@ export class ViewerFormlyCheckboxWithTextType extends FieldType<FieldTypeConfig<
     if (!Array.isArray(this.formControl.value)) {
       this.formControl.setValue([], { emitEvent: false });
     }
-    this.ensureCommentsModel();
+    const selected = this.checkboxOptions.filter((option, index) => {
+      const code = this.resolveOptionValue(option, index);
+      return code === this.otherCode ? !!this.otherValue.trim()
+        : Object.is(this.model?.[`${this.fieldKey}_${code}`], this.props.responseEncoding?.selectedValue ?? true);
+    }).map((option, index) => this.resolveOptionValue(option, index));
+    if (selected.length) this.formControl.setValue(selected, { emitEvent: false });
   }
 
   get checkboxOptions(): CheckboxWithTextOption[] {
@@ -140,17 +153,27 @@ export class ViewerFormlyCheckboxWithTextType extends FieldType<FieldTypeConfig<
       : this.selectedValues.filter((value) => value !== optionValue);
 
     this.formControl.setValue(nextValues);
+    if (this.model && this.fieldKey) {
+      if (optionValue !== this.otherCode) this.model[`${this.fieldKey}_${optionValue}`] = checked
+        ? this.props.responseEncoding?.selectedValue ?? true : this.props.responseEncoding?.unselectedValue ?? false;
+      if (!checked) {
+        this.model[this.commentKey(optionValue)] = '';
+        if (optionValue === this.otherCode) this.model[this.otherTextKey] = '';
+      }
+    }
+    this.formControl.markAsDirty();
+    this.formControl.markAsTouched();
   }
 
   updateComment(option: CheckboxWithTextOption, index: number, comment: string): void {
     const optionKey = this.resolveOptionKey(option, index);
-    if (!optionKey) {
+    if (!optionKey || !this.model || !this.isSelected(this.resolveOptionValue(option, index))) {
       return;
     }
 
-    const comments = this.getCommentsModel();
-    comments[optionKey] = comment;
-    this.setCommentsModel(comments);
+    this.model[this.commentKey(optionKey)] = comment;
+    this.formControl.markAsDirty();
+    this.formControl.markAsTouched();
   }
 
   onCommentFocus(option: CheckboxWithTextOption, index: number): void {
@@ -172,8 +195,7 @@ export class ViewerFormlyCheckboxWithTextType extends FieldType<FieldTypeConfig<
       return '';
     }
 
-    const comments = this.getCommentsModel();
-    return this.toText(comments[optionKey] ?? option.comment);
+    return this.toText(this.model?.[this.commentKey(optionKey)] ?? option.comment);
   }
 
   readonly trackByOption = (index: number, option: CheckboxWithTextOption): string => this.resolveOptionValue(option, index);
@@ -188,60 +210,26 @@ export class ViewerFormlyCheckboxWithTextType extends FieldType<FieldTypeConfig<
       : [];
   }
 
-  private ensureCommentsModel(): void {
-    const commentsKey = this.getCommentsModelKey();
-    if (!commentsKey || !this.model) {
-      return;
-    }
-
-    const raw = (this.model as Record<string, unknown>)[commentsKey];
-    if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
-      return;
-    }
-
-    const defaults = this.checkboxOptions.reduce<Record<string, string>>((acc, option, index) => {
-      const optionKey = this.resolveOptionKey(option, index);
-      if (!optionKey) {
-        return acc;
-      }
-      acc[optionKey] = this.toText(option.comment);
-      return acc;
-    }, {});
-
-    this.setCommentsModel(defaults);
+  private get fieldKey(): string | null {
+    const key = this.field.key;
+    if (Array.isArray(key)) return key.length === 1 ? String(key[0]) : null;
+    return typeof key === 'string' || typeof key === 'number' ? String(key) : null;
   }
-
-  private getCommentsModel(): Record<string, string> {
-    const commentsKey = this.getCommentsModelKey();
-    if (!commentsKey || !this.model) {
-      return {};
-    }
-
-    const raw = (this.model as Record<string, unknown>)[commentsKey];
-    if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
-      return { ...(raw as Record<string, string>) };
-    }
-
-    return {};
+  private get otherCode(): string { return this.props.otherResponse?.code ?? '-oth-'; }
+  private get otherTextKey(): string { return this.props.otherResponse?.textResponseKey ?? `${this.fieldKey}_OTHER_value`; }
+  private commentKey(code: string): string {
+    return code === this.otherCode ? this.props.otherResponse?.commentResponseKey ?? `${this.fieldKey}_OTHER_comment`
+      : `${this.fieldKey}_${code}_comment`;
   }
-
-  private setCommentsModel(comments: Record<string, string>): void {
-    const commentsKey = this.getCommentsModelKey();
-    if (!commentsKey || !this.model) {
-      return;
-    }
-
-    (this.model as Record<string, unknown>)[commentsKey] = comments;
-  }
-
-  private getCommentsModelKey(): string | null {
-    if (typeof this.field.key === 'string') {
-      return `${this.field.key}${this.commentsSuffix}`;
-    }
-    if (typeof this.field.key === 'number') {
-      return `${String(this.field.key)}${this.commentsSuffix}`;
-    }
-    return null;
+  isOtherOption(option: CheckboxWithTextOption, index: number): boolean { return this.resolveOptionValue(option, index) === this.otherCode; }
+  get otherLabel(): string { return this.resolveLanguage() === 'es' ? 'Especifica' : 'Specify'; }
+  get otherValue(): string { return this.toText(this.model?.[this.otherTextKey]); }
+  updateOtherValue(value: string): void {
+    if (!this.model || !this.isSelected(this.otherCode) || this.formControl.disabled) return;
+    this.model[this.otherTextKey] = value;
+    this.formControl.markAsDirty();
+    this.formControl.markAsTouched();
+    this.formControl.updateValueAndValidity();
   }
 
   private resolveLanguage(): 'es' | 'en' {

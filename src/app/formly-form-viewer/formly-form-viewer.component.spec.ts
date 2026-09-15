@@ -3,6 +3,7 @@ import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { FormlyFieldConfig } from '@ngx-formly/core';
 
 import { appConfig } from '../app.config';
+import { withFormlyViewerI18n } from '../formly-types/formly-viewer-validation-messages.provider';
 import { FormlyFormViewerComponent } from './formly-form-viewer.component';
 
 describe('FormlyFormViewerComponent', () => {
@@ -36,6 +37,9 @@ describe('FormlyFormViewerComponent', () => {
     createComponent();
 
     expect(component).toBeTruthy();
+    const config = withFormlyViewerI18n();
+    expect(config.validators?.some(v => ['minAnswers', 'maxAnswers', 'minSelections', 'maxSelections'].includes(v.name))).toBeFalse();
+    expect(config.validationMessages?.some(message => message.name === 'matrixCells')).toBeTrue();
   });
 
   it('renders basic Angular/Formly fields', () => {
@@ -150,7 +154,32 @@ describe('FormlyFormViewerComponent', () => {
     expect(textContent()).toContain('Step 1');
   });
 
-  it('renders ranking fields and initializes ordered values', () => {
+  it('does not announce storage success when the stepper only dispatches a submit', () => {
+    createComponent([{ type: 'stepper', props: { surveyActive: true }, fieldGroup: [{
+      props: { label: 'Step 1' }, fieldGroup: [{ key: 'name', type: 'input', props: { label: 'Name' } }],
+    }] }]);
+    const submitted = jasmine.createSpy('submitted');
+    component.submitForm.subscribe(submitted);
+    (fixture.nativeElement.querySelector('.ffu-stepper-actions button[type="submit"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(submitted).toHaveBeenCalledTimes(1);
+    expect(fixture.nativeElement.querySelector('.ffu-stepper-content')).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('.ffu-stepper-card')).toBeNull();
+  });
+
+  it('keeps Angular sanitization active for HTML from a publication', () => {
+    createComponent([{ type: 'stepper', props: {
+      showWelcome: true,
+      welcomeText: '<b>Welcome</b><img src="invalid:" onerror="unsafeHandler()"><script>unsafeHandler()</script><a href="javascript:unsafeHandler()">Link</a>',
+    }, fieldGroup: [{ fieldGroup: [{ key: 'name', type: 'input' }] }] }]);
+    const content = fixture.nativeElement.querySelector('.ffu-stepper-rich-text') as HTMLElement;
+    expect(content.querySelector('b')?.textContent).toBe('Welcome');
+    expect(content.querySelector('script')).toBeNull();
+    expect(content.querySelector('img')?.hasAttribute('onerror')).toBeFalse();
+    expect(content.querySelector('a')?.getAttribute('href')?.startsWith('javascript:')).toBeFalse();
+  });
+
+  it('renders available ranking options without choosing answers', () => {
     createComponent([
       {
         key: 'Q_RANK',
@@ -168,6 +197,7 @@ describe('FormlyFormViewerComponent', () => {
     expect(textContent()).toContain('Rank priorities');
     expect(textContent()).toContain('First');
     expect(textContent()).toContain('Second');
-    expect(component.form.get('Q_RANK')?.value).toEqual(['SQ001', 'SQ002']);
+    expect(component.form.get('Q_RANK')?.value).toBeUndefined();
+    expect(component.model['Q_RANK']).toBeUndefined();
   });
 });

@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { CdkDragDrop, DragDropModule, moveItemInArray } from '@angular/cdk/drag-drop';
 import { MatButtonModule } from '@angular/material/button';
@@ -14,6 +14,7 @@ interface RankingOption {
 }
 
 interface RankingProps extends FormlyFieldProps {
+  locale?: string;
   label?: string;
   description?: string;
   inlineDescription?: string;
@@ -30,6 +31,16 @@ interface RankingProps extends FormlyFieldProps {
       <label class="ffu-label" *ngIf="showLabel">{{ props.label }}</label>
       <p class="ffu-description" *ngIf="descriptionText">{{ descriptionText }}</p>
 
+      <h3>{{ spanish ? 'Opciones disponibles' : 'Available items' }}</h3>
+      <div class="ffu-ranking-available">
+        <button mat-stroked-button type="button" *ngFor="let option of availableOptions"
+          [disabled]="formControl.disabled || option.disabled" (click)="addOption(option)">
+          {{ option.label }} +
+        </button>
+      </div>
+      <h3>{{ spanish ? 'Tu orden' : 'Your ranking' }}</h3>
+      <p *ngIf="!rankingOptions.length">{{ spanish ? 'Selecciona una opción para comenzar.' : 'Select an item to start.' }}</p>
+
       <div
         cdkDropList
         class="ffu-ranking-list"
@@ -45,13 +56,15 @@ interface RankingProps extends FormlyFieldProps {
           <span class="ffu-ranking-position">{{ index + 1 }}</span>
           <span class="ffu-ranking-label">{{ option.label }}</span>
           <span class="ffu-ranking-actions">
+            <button mat-button type="button" [disabled]="formControl.disabled || option.disabled"
+              (click)="removeOption(index)">{{ spanish ? 'Quitar' : 'Remove' }}</button>
             <button
               mat-button
               type="button"
               [disabled]="formControl.disabled || option.disabled || index === 0"
               (click)="moveUp(index)"
             >
-              Subir
+              {{ spanish ? 'Subir' : 'Move up' }}
             </button>
             <button
               mat-button
@@ -59,7 +72,7 @@ interface RankingProps extends FormlyFieldProps {
               [disabled]="formControl.disabled || option.disabled || index === rankingOptions.length - 1"
               (click)="moveDown(index)"
             >
-              Bajar
+              {{ spanish ? 'Bajar' : 'Move down' }}
             </button>
           </span>
         </div>
@@ -81,6 +94,12 @@ interface RankingProps extends FormlyFieldProps {
 
       .ffu-ranking-list {
         display: grid;
+        gap: 8px;
+      }
+
+      .ffu-ranking-available {
+        display: flex;
+        flex-wrap: wrap;
         gap: 8px;
       }
 
@@ -132,11 +151,11 @@ interface RankingProps extends FormlyFieldProps {
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class ViewerFormlyRankingType extends FieldType<FieldTypeConfig<RankingProps>> implements OnInit {
+export class ViewerFormlyRankingType extends FieldType<FieldTypeConfig<RankingProps>> {
   override defaultOptions = MATERIAL_WRAPPED_FIELD_DEFAULT_OPTIONS;
 
-  ngOnInit(): void {
-    this.syncControlValue(this.resolveInitialOrder(), false);
+  get spanish(): boolean {
+    return `${this.props['locale'] ?? 'en'}`.startsWith('es');
   }
 
   get showLabel(): boolean {
@@ -152,6 +171,20 @@ export class ViewerFormlyRankingType extends FieldType<FieldTypeConfig<RankingPr
     return this.currentOrder
       .map((code) => byCode.get(code))
       .filter((option): option is RankingOption => !!option);
+  }
+
+  get availableOptions(): RankingOption[] {
+    return this.optionSource.filter(option => !this.currentOrder.includes(this.resolveOptionCode(option)));
+  }
+
+  addOption(option: RankingOption): void {
+    if (this.formControl.disabled || option.disabled || !this.availableOptions.includes(option)) return;
+    this.syncControlValue([...this.currentOrder, this.resolveOptionCode(option)]);
+  }
+
+  removeOption(index: number): void {
+    if (this.formControl.disabled || this.rankingOptions[index]?.disabled) return;
+    this.syncControlValue(this.currentOrder.filter((_, position) => position !== index));
   }
 
   drop(event: CdkDragDrop<RankingOption[]>): void {
@@ -189,11 +222,8 @@ export class ViewerFormlyRankingType extends FieldType<FieldTypeConfig<RankingPr
     this.syncControlValue(nextOrder);
   }
 
-  private syncControlValue(order: string[], emitEvent = true): void {
-    this.formControl.setValue(order, { emitEvent });
-    if (!emitEvent) {
-      return;
-    }
+  private syncControlValue(order: string[]): void {
+    this.formControl.setValue(order);
     this.formControl.markAsDirty();
     this.formControl.markAsTouched();
     this.formControl.updateValueAndValidity();
@@ -206,10 +236,8 @@ export class ViewerFormlyRankingType extends FieldType<FieldTypeConfig<RankingPr
     const currentValue = Array.isArray(this.formControl.value)
       ? this.formControl.value.map((value: unknown) => this.toText(value).trim()).filter((value: string) => !!value)
       : [];
-    const currentSet = new Set(currentValue);
     const knownCurrent = currentValue.filter((code) => validCodes.includes(code));
-    const missingCodes = validCodes.filter((code) => !currentSet.has(code));
-    return [...knownCurrent, ...missingCodes];
+    return [...new Set(knownCurrent)];
   }
 
   private get optionSource(): RankingOption[] {

@@ -69,9 +69,20 @@ export class ViewerFormlyMultipleInputType extends FieldType<FieldTypeConfig<Mul
   override defaultOptions = MATERIAL_WRAPPED_FIELD_DEFAULT_OPTIONS;
 
   ngOnInit(): void {
-    if (!this.formControl.value || typeof this.formControl.value !== 'object' || Array.isArray(this.formControl.value)) {
-      this.formControl.setValue({}, { emitEvent: false });
+    const current = this.getCurrentObjectValue();
+    const key = Array.isArray(this.field.key) ? this.field.key[0] : this.field.key;
+    if (key !== undefined && this.model && (!Array.isArray(this.field.key) || this.field.key.length === 1)) {
+      for (const row of this.subquestions) {
+        const flatKey = `${key}_${row.code}`;
+        if (!Object.prototype.hasOwnProperty.call(current, row.code)
+          && Object.prototype.hasOwnProperty.call(this.model, flatKey)) {
+          current[row.code] = this.model[flatKey];
+        }
+        // Keep one editable answer. A stale flat alias must not restore erased text.
+        delete this.model[flatKey];
+      }
     }
+    this.formControl.setValue(current);
   }
 
   get subquestions(): MultipleInputRow[] {
@@ -94,6 +105,8 @@ export class ViewerFormlyMultipleInputType extends FieldType<FieldTypeConfig<Mul
     const current = this.getCurrentObjectValue();
     current[code] = value;
     this.formControl.setValue(current);
+    this.formControl.markAsDirty();
+    this.formControl.markAsTouched();
   }
 
   toText(value: unknown): string {

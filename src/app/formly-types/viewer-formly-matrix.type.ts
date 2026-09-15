@@ -5,29 +5,17 @@ import { FieldType, FormlyFieldProps } from '@ngx-formly/material/form-field';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatRadioModule } from '@angular/material/radio';
 import { MATERIAL_WRAPPED_FIELD_DEFAULT_OPTIONS } from './material-wrapper-default-options';
-
-interface MatrixRow {
-  code: string;
-  label: string;
-}
-
-interface MatrixColumn {
-  code: string;
-  label: string;
-  value?: string;
-}
+import type { SurveyStructureMatrix, SurveyStructureOption, SurveyStructureResponseEncoding } from 'survey-structure';
+import { encodeMatrixSelection, getMatrixResponseValue, isMatrixSelection, setMatrixResponseValue } from 'formly-form-parser';
 
 interface MatrixProps extends FormlyFieldProps {
+  locale?: string;
   label?: string;
   description?: string;
   inlineDescription?: string;
   show_label?: boolean;
-  matrix?: {
-    rows?: MatrixRow[];
-    columns?: MatrixColumn[];
-    selectionMode?: 'single' | 'multiple' | string;
-  };
-  selectionMode?: 'single' | 'multiple' | string;
+  matrix?: SurveyStructureMatrix;
+  responseEncoding?: SurveyStructureResponseEncoding;
 }
 
 @Component({
@@ -40,40 +28,86 @@ interface MatrixProps extends FormlyFieldProps {
       <p class="ffu-matrix-description" *ngIf="descriptionText">{{ descriptionText }}</p>
 
       <div class="ffu-matrix-scroll">
+        <table class="ffu-matrix-table" *ngIf="mode === 'dual-single'; else cellMatrix">
+          <thead>
+            <tr>
+              <th rowspan="2" scope="col"></th>
+              <th *ngFor="let scale of columns" scope="colgroup"
+                [attr.colspan]="scaleOptions(scale.code).length + (props.required ? 0 : 1)">{{ scale.label }}</th>
+            </tr>
+            <tr>
+              <ng-container *ngFor="let scale of columns">
+                <th *ngFor="let option of scaleOptions(scale.code)" scope="col">{{ option.label }}</th>
+                <th *ngIf="!props.required" scope="col">{{ noAnswerLabel }}</th>
+              </ng-container>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let row of rows; trackBy: trackByOption">
+              <th scope="row" class="ffu-matrix-row">{{ row.label }}</th>
+              <ng-container *ngFor="let scale of columns">
+                <td *ngFor="let option of scaleOptions(scale.code)">
+                  <mat-radio-button [name]="radioName(row.code, scale.code)"
+                    [value]="option.code" [checked]="cellValue(row.code, scale.code) === option.code"
+                    [aria-label]="row.label + ' — ' + scale.label + ' — ' + option.label"
+                    [disabled]="formControl.disabled" (change)="selectScaleOption(row.code, scale.code, option.code)"
+                  ></mat-radio-button>
+                </td>
+                <td *ngIf="!props.required">
+                  <mat-radio-button [name]="radioName(row.code, scale.code)" value=""
+                    [checked]="!cellValue(row.code, scale.code)"
+                    [aria-label]="row.label + ' — ' + scale.label + ' — ' + noAnswerLabel"
+                    [disabled]="formControl.disabled" (change)="selectScaleOption(row.code, scale.code, '')"
+                  ></mat-radio-button>
+                </td>
+              </ng-container>
+            </tr>
+          </tbody>
+        </table>
+        <ng-template #cellMatrix>
         <table class="ffu-matrix-table">
           <thead>
             <tr>
               <th class="ffu-matrix-row"></th>
-              <th class="ffu-matrix-col-header" *ngFor="let column of columns; trackBy: trackByColumn">{{ column.label }}</th>
+              <th scope="col" class="ffu-matrix-col-header" *ngFor="let column of columns; trackBy: trackByOption">{{ column.label }}</th>
             </tr>
           </thead>
           <tbody>
-            <tr *ngFor="let row of rows; trackBy: trackByRow">
+            <tr *ngFor="let row of rows; trackBy: trackByOption">
               <th scope="row" class="ffu-matrix-row">
                 <span class="ffu-matrix-row-label" [attr.title]="row.label">{{ row.label }}</span>
               </th>
-              <td *ngFor="let column of columns; trackBy: trackByColumn">
+              <td *ngFor="let column of columns; trackBy: trackByOption">
                 <mat-radio-button
-                  *ngIf="isSingleMode"
+                  *ngIf="mode === 'single'"
                   class="ffu-matrix-radio"
                   [name]="radioName(row.code)"
                   [value]="column.code"
                   [checked]="isSelected(row.code, column.code)"
+                  [aria-label]="row.label + ' — ' + column.label"
                   [disabled]="formControl.disabled"
                   (change)="selectSingle(row.code, column.code)"
                 ></mat-radio-button>
 
                 <mat-checkbox
-                  *ngIf="!isSingleMode"
+                  *ngIf="mode === 'multiple'"
                   class="ffu-matrix-check"
                   [checked]="isChecked(row.code, column.code)"
+                  [aria-label]="row.label + ' — ' + column.label"
                   [disabled]="formControl.disabled"
                   (change)="selectMultiple(row.code, column.code, !!$event.checked)"
                 ></mat-checkbox>
+                <input *ngIf="mode === 'text' || mode === 'number'"
+                  [type]="mode === 'number' ? 'number' : 'text'"
+                  [value]="cellValue(row.code, column.code) ?? ''"
+                  [attr.aria-label]="row.label + ' — ' + column.label"
+                  [attr.min]="props.min" [attr.max]="props.max" [attr.step]="props.step ?? 'any'"
+                  [disabled]="formControl.disabled" (input)="onCellInput(row.code, column.code, $event)" />
               </td>
             </tr>
           </tbody>
         </table>
+        </ng-template>
       </div>
     </section>
   `,
@@ -181,77 +215,95 @@ export class ViewerFormlyMatrixType extends FieldType<FieldTypeConfig<MatrixProp
   }
 
   ngOnInit(): void {
-    if (!this.formControl.value || typeof this.formControl.value !== 'object' || Array.isArray(this.formControl.value)) {
-      this.formControl.setValue({}, { emitEvent: false });
+    let answer: unknown = this.formControl.value;
+    for (const row of this.rows) {
+      const columns = this.mode === 'single' ? [undefined] : this.columns.map(column => column.code);
+      for (const columnCode of columns) {
+        const flatValue = this.model?.[this.flatResponseKey(row.code, columnCode)];
+        if (getMatrixResponseValue(answer, row.code, columnCode) === undefined && flatValue !== undefined) {
+          answer = setMatrixResponseValue(answer, row.code, columnCode, flatValue);
+        }
+        if (this.model) delete this.model[this.flatResponseKey(row.code, columnCode)];
+      }
     }
+    if (answer !== this.formControl.value) this.formControl.setValue(answer);
   }
 
-  get rows(): MatrixRow[] {
-    const matrixRows = this.props?.matrix?.rows;
-    if (Array.isArray(matrixRows)) {
-      return matrixRows;
-    }
-    const fallbackRows = (this.props as any)?.rows;
-    return Array.isArray(fallbackRows) ? fallbackRows : [];
+  get rows(): SurveyStructureOption[] {
+    return this.props.matrix?.rows ?? [];
   }
 
-  get columns(): MatrixColumn[] {
-    const matrixColumns = this.props?.matrix?.columns;
-    if (Array.isArray(matrixColumns)) {
-      return matrixColumns;
-    }
-    const fallbackColumns = (this.props as any)?.columns;
-    return Array.isArray(fallbackColumns) ? fallbackColumns : [];
+  get columns(): SurveyStructureOption[] {
+    return this.props.matrix?.columns ?? [];
   }
 
-  get isSingleMode(): boolean {
-    const mode = this.props?.matrix?.selectionMode ?? this.props?.selectionMode;
-    return mode !== 'multiple';
+  get mode(): SurveyStructureMatrix['mode'] | undefined {
+    return this.props.matrix?.mode;
   }
 
-  trackByRow(index: number, row: MatrixRow): string {
-    return row?.code ?? String(index);
+  get noAnswerLabel(): string {
+    return `${this.props['locale'] ?? 'en'}`.startsWith('es') ? 'Sin respuesta' : 'No answer';
   }
 
-  trackByColumn(index: number, column: MatrixColumn): string {
-    return column?.code ?? String(index);
+  scaleOptions(code: string): SurveyStructureOption[] {
+    const matrix = this.props.matrix;
+    return matrix?.mode === 'dual-single' ? matrix.columns.find(column => column.code === code)?.options ?? [] : [];
   }
 
-  radioName(rowCode: string): string {
-    return `${String(this.field.key ?? this.field.id ?? 'matrix')}_${rowCode}`;
+  trackByOption(index: number, option: SurveyStructureOption): string {
+    return option.code;
+  }
+
+  radioName(rowCode: string, scaleCode = ''): string {
+    return `${this.field.id}_${rowCode}_${scaleCode}`;
   }
 
   isSelected(rowCode: string, columnCode: string): boolean {
-    return `${this.formControl.value?.[rowCode] ?? ''}` === columnCode;
+    return getMatrixResponseValue(this.formControl.value, rowCode) === columnCode;
   }
 
   isChecked(rowCode: string, columnCode: string): boolean {
-    return !!this.formControl.value?.[rowCode]?.[columnCode];
+    return isMatrixSelection(this.cellValue(rowCode, columnCode), this.props.responseEncoding);
   }
 
   selectSingle(rowCode: string, columnCode: string): void {
-    const current = this.getCurrentObjectValue();
-    current[rowCode] = columnCode;
-    this.formControl.setValue(current);
+    if (this.formControl.disabled || this.mode !== 'single') return;
+    this.writeAnswer(rowCode, undefined, columnCode);
   }
 
   selectMultiple(rowCode: string, columnCode: string, checked: boolean): void {
-    const current = this.getCurrentObjectValue();
-    const currentRow = current[rowCode];
-    const nextRow = currentRow && typeof currentRow === 'object' && !Array.isArray(currentRow)
-      ? { ...currentRow }
-      : {};
-
-    nextRow[columnCode] = checked;
-    current[rowCode] = nextRow;
-    this.formControl.setValue(current);
+    if (this.mode !== 'multiple') return;
+    this.setCellValue(rowCode, columnCode, encodeMatrixSelection(checked, this.props.responseEncoding));
   }
 
-  private getCurrentObjectValue(): Record<string, any> {
-    const value = this.formControl.value;
-    if (value && typeof value === 'object' && !Array.isArray(value)) {
-      return { ...value };
-    }
-    return {};
+  cellValue(rowCode: string, columnCode: string): unknown {
+    return getMatrixResponseValue(this.formControl.value, rowCode, columnCode);
+  }
+
+  onCellInput(rowCode: string, columnCode: string, event: Event): void {
+    const input = event.target as HTMLInputElement;
+    this.setCellValue(rowCode, columnCode, this.mode === 'number'
+      ? input.value === '' ? null : input.valueAsNumber
+      : input.value);
+  }
+
+  selectScaleOption(rowCode: string, scaleCode: string, optionCode: string): void {
+    if (this.mode !== 'dual-single' || (optionCode !== '' && !this.scaleOptions(scaleCode).some(option => option.code === optionCode))) return;
+    this.setCellValue(rowCode, scaleCode, optionCode);
+  }
+
+  private setCellValue(rowCode: string, columnCode: string, value: SurveyStructureResponseEncoding['selectedValue'] | null): void {
+    if (this.formControl.disabled) return;
+    this.writeAnswer(rowCode, columnCode, value);
+  }
+
+  private writeAnswer(rowCode: string, columnCode: string | undefined, value: SurveyStructureResponseEncoding['selectedValue'] | null): void {
+    this.formControl.setValue(setMatrixResponseValue(this.formControl.value, rowCode, columnCode, value));
+    this.formControl.markAsDirty();
+    this.formControl.markAsTouched();
+  }
+
+  private flatResponseKey(rowCode: string, columnCode?: string): string {
+    return `${this.field.key}_${rowCode}${columnCode === undefined ? '' : `_${columnCode}`}`;
   }
 }

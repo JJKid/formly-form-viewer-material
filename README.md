@@ -1,83 +1,134 @@
 # formly-form-viewer-material
 
-Libreria Angular de render para formularios Formly con Material.
+English | [Español](README.es.md)
 
-## Proposito
+Angular Material viewer for running a Formly publication.
 
-Esta libreria contiene el viewer visual para formularios Formly con Angular Material. Registra los tipos personalizados que necesita el proyecto, expone el componente publico `FormlyFormViewerComponent` y permite renderizar un arreglo `FormlyFieldConfig[]` dentro de una app Angular.
+## Purpose
 
-La lectura de catalogo, la autorizacion publica, el guardado local y la sincronizacion de respuestas se configuran desde la app host con `formly-form-utils`.
+`FormlyFormViewerComponent` receives `FormlyFieldConfig[]`, renders the controls and emits the response model. It does not open sessions or save responses itself.
 
-## Integracion esperada
+The host configures catalog access, public authorization, local storage and response synchronization through `formly-form-utils`.
 
-Esta libreria se usa junto con:
+## Expected integration
 
-- `formly-form-utils`: catalogo, PouchDB local y envio al BFF
-- un host app: por ejemplo `buzonPuma`
+Use this library with:
 
-## Registro en la app host
+- `formly-form-utils`: catalog, local PouchDB and submission to the BFF.
+- A host application, such as `buzonPuma`.
+
+## Register in the host
 
 ```ts
-FormlyModule.forRoot({
-  ...withFormlyViewerTypes(),
-  ...withFormlyViewerI18n({
-    defaultLanguage: 'es',
-    i18nDictionaries: MY_DICTIONARIES,
-  }),
-})
+import { provideFormlyCore } from '@ngx-formly/core';
+import { withFormlyMaterial } from '@ngx-formly/material';
+import { withFormlyViewerTypes, withFormlyViewerI18n } from 'formly-form-viewer-material';
+
+export const appConfig = {
+  providers: [provideFormlyCore([
+    ...withFormlyMaterial(),
+    withFormlyViewerTypes(),
+    withFormlyViewerI18n({ defaultLanguage: 'es' }),
+  ])],
+};
 ```
 
-## Compatibilidad
+Register the base Material modules required by the controls you use, including the Formly datepicker, slider and toggle modules when applicable. BuzonPuma's `src/main.ts` is an integration example.
 
-| Elemento | Version/rango para `formly-form-viewer-material@0.0.1` |
+## Compatibility
+
+| Component | Version prepared in local source |
 | --- | --- |
-| `formly-form-viewer-material` | `0.0.1` |
-| Angular | `^19.2.25` |
-| Angular CDK/Material | `^19.2.19` |
-| `@ngx-formly/core` / `@ngx-formly/material` | `^7.0.1` |
-| RxJS | `~7.8.0` |
-| TypeScript | `~5.6.x` |
-| `zone.js` | `~0.15.0` |
+| `formly-form-viewer-material` | `1.0.0` |
+| Angular | `^20.3.31` |
+| Angular CDK/Material | `^20.2.14` |
+| `@ngx-formly/core` / `@ngx-formly/material` | `^7.1.0` |
+| `formly-form-parser` | `2.0.0` |
+| `survey-structure` | `3.0.0` |
+| TypeScript | `5.9.3` |
+| `zone.js` | `~0.15.1` |
 
-El componente publico es `FormlyFormViewerComponent` y el selector se mantiene como `formly-form-viewer`.
+The public component is `FormlyFormViewerComponent` and its selector is `formly-form-viewer`.
 
-Nota de auditoria: `npm run build`, `npm test -- --watch=false --browsers=ChromeHeadless` y `npm pack --dry-run` sobre `dist/formly-form-viewer-material` pasan. `npm audit` no queda limpio en Angular 19; una version security-clean requeriria una migracion mayor.
+Local preparation does not mean these releases are published. The parser and contract are declared dependencies; do not copy editor source into the host.
 
-## Desarrollo
+## Capture from an application
+
+Import `FormlyFormViewerComponent` in the standalone consuming component:
+
+```html
+<formly-form-viewer
+  [fields]="fields"
+  [model]="answers"
+  [options]="options"
+  [submitting]="saving"
+  (submitForm)="saveAnswers($event)"
+/>
+```
+
+`fields` contains generated Formly fields or a publication received from the API. `answers` holds current responses; `options` provides Formly context. Updating fields preserves the supplied model and options. To start a new capture, the host explicitly supplies a new model.
+
+While `saving` is true, controls—including the stepper—and submit attempts are blocked. The host must also guard its persistence operation and clear `saving` in `finally`.
+
+Pressing Submit in the stepper does not confirm storage; only the host's received result does. Publication HTML keeps Angular's native sanitization.
+
+## Matrices, ranking and answers
+
+The viewer reads `props.matrix.mode` generated from `SurveyStructure`, not a separate matrix model with `selectionMode`.
+
+| Mode | Control | Row response |
+| --- | --- | --- |
+| `single` | One choice per row | `{ "R1": "C2" }` |
+| `multiple` | Independent checkboxes | `{ "R1": { "C1": true } }` |
+| `text` | Text in each cell | `{ "R1": { "C1": "Respuesta" } }` |
+| `number` | Number in each cell | `{ "R1": { "C1": 0 } }` |
+| `dual-single` | One choice in each scale | `{ "R1": { "S0": "A1", "S1": "B2" } }` |
+
+The response lives under the question key, such as `answers.MATRIX`. In a dual-scale matrix, `S0` identifies a scale and `A1` an option in that scale. Each scale declares its own options.
+
+When `props.responseEncoding` declares `{ selectedValue: "Y", unselectedValue: "N" }`, checkboxes read and write those values: `"N"` is not interpreted as true. Without explicit encoding they use booleans. Missing cells are not filled with negative answers.
+
+Flat keys such as `MATRIX_R1_C1` can also be loaded. Editing a cell maintains that key together with its nested value. Reading, writing and encoding helpers belong to the parser and are shared with the Ionic viewer.
+
+Ranking starts with no selected options unless an explicit default exists. Participants add, reorder and remove options. Opening the form does not create a response.
+
+## Conditions and validation
+
+The publication retains `fields[].expressions.hide` and Formly executes it. The viewer does not interpret LimeSurvey: the parser already received the neutral condition.
+
+Limits, patterns and required flags remain in `props`. Loading JSON reconstructs selection and matrix-cell validators through the parser because JSON cannot transport functions. A required matrix needs responses per row/cell according to its mode; multiple selection needs at least one selected cell per row. Optional matrices allow partial responses but validate the cells that were answered.
+
+Defaults arrive in `field.defaultValue`, as required by Formly, and do not replace existing answers.
+
+## Development
+
+These commands require the declared package releases to be available in npm. Until publication is approved, use the exact local release archives for integration; do not substitute older versions or bypass peer checks.
 
 ```bash
-npm install
+npm ci
+npm run test:ci
 npm run build
 ```
 
-Salida:
+Output:
 
 - `dist/formly-form-viewer-material/`
 
-## Integracion local en un host
+Karma runs ChromeHeadless tests. The suite generates synthetic surveys with the parser, serializes them to JSON and checks all five matrix modes, encoding, defaults, partial ranking, conditions, validators, field updates and submission blocking. It does not replace a real host integration test covering authorization, networking and persistence.
 
-Ejemplo en `package.json` del host:
-
-```json
-"formly-form-viewer-material": "file:../formly-form-viewer-material/dist/formly-form-viewer-material/formly-form-viewer-material-0.1.0.tgz"
-```
-
-Luego:
+When reinstalling a modified local archive with the same version, clear Angular's cache before rerunning tests:
 
 ```bash
-npm install
-npm run build
+npx ng cache clean
+npm run test:ci
 ```
 
-Un host minimo Angular sirve para probar que una app externa puede consumir esta libreria sin importar codigo del editor de Form Builder. Debe instalar el paquete, registrar Formly con `withFormlyViewerTypes()`, renderizar `FormlyFormViewerComponent` y pasarle un arreglo `FormlyFieldConfig[]` de prueba.
+## Publication
 
-## Publicacion
+**Publication is paused.** This command inspects a package without publishing it:
 
 ```bash
-npm version patch
-npm run build
-cd dist/formly-form-viewer-material
-npm publish --access public
+npm run pack:dry-run
 ```
 
-Publica desde `dist/formly-form-viewer-material`, no desde la raiz del repo. La raiz contiene archivos de desarrollo que no deben formar parte del paquete npm consumible.
+After approval and host integration verification, publish only from `dist/formly-form-viewer-material`, not the development tree.

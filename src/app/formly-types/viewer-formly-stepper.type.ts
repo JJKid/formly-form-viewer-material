@@ -1,11 +1,10 @@
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, DoCheck, HostListener, inject } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, DoCheck, HostListener, inject, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FieldType, FieldTypeConfig, FormlyField, FormlyFieldConfig, FormlyFieldProps } from '@ngx-formly/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatStepperModule } from '@angular/material/stepper';
 import { StepperSelectionEvent } from '@angular/cdk/stepper';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
-import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import {
   DEFAULT_FORMLY_VIEWER_I18N_VALIDATION_DICTIONARIES,
   FormlyViewerValidationMessagesDictionary,
@@ -17,7 +16,7 @@ import {
   normalizeViewerUiLocale,
 } from './formly-viewer-ui-messages';
 
-type CompletionState = 'completed_saved' | 'completed_preview_not_saved' | 'completed_screenout' | null;
+type CompletionState = 'completed_preview_not_saved' | 'completed_screenout' | null;
 
 interface StepperCompletionContext {
   isActive?: boolean;
@@ -113,7 +112,7 @@ interface StepperProps extends FormlyFieldProps {
               </button>
 
               <button mat-flat-button color="primary" type="button" *ngIf="canGoNext" (click)="nextStep()"
-                [disabled]="!isStepValid(currentStep)">
+                [disabled]="advancing || !isStepValid(currentStep)">
                 {{ messages.nextLabel }}
               </button>
 
@@ -296,9 +295,10 @@ interface StepperProps extends FormlyFieldProps {
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class ViewerFormlyStepperType extends FieldType<FieldTypeConfig<StepperProps>> implements DoCheck {
+export class ViewerFormlyStepperType extends FieldType<FieldTypeConfig<StepperProps>> implements DoCheck, OnDestroy {
+  private nextTimer?: ReturnType<typeof setTimeout>;
+  get advancing(): boolean { return this.nextTimer !== undefined; }
   private readonly cdr = inject(ChangeDetectorRef);
-  private readonly sanitizer = inject(DomSanitizer);
   private isMobileViewport = this.detectMobileViewport();
   currentStepIndex = 0;
   hasStarted = false;
@@ -417,20 +417,20 @@ export class ViewerFormlyStepperType extends FieldType<FieldTypeConfig<StepperPr
     return `${this.props.endText ?? ''}`.trim();
   }
 
-  get surveyDescriptionHtml(): SafeHtml {
-    return this.toSafeHtml(this.props?.surveyDescription);
+  get surveyDescriptionHtml(): string {
+    return this.props.surveyDescription ?? '';
   }
 
-  get welcomeTextHtml(): SafeHtml {
-    return this.toSafeHtml(this.props?.welcomeText);
+  get welcomeTextHtml(): string {
+    return this.props.welcomeText ?? '';
   }
 
-  get policyNoticeHtml(): SafeHtml {
-    return this.toSafeHtml(this.props?.policyNotice);
+  get policyNoticeHtml(): string {
+    return this.props.policyNotice ?? '';
   }
 
-  get completionEndTextHtml(): SafeHtml {
-    return this.toSafeHtml(this.completionEndText);
+  get completionEndTextHtml(): string {
+    return this.completionEndText;
   }
 
   get completionWarnings(): string[] {
@@ -497,6 +497,7 @@ export class ViewerFormlyStepperType extends FieldType<FieldTypeConfig<StepperPr
   }
 
   previousStep(): void {
+    this.cancelNextStep();
     if (!this.canGoPrevious) {
       return;
     }
@@ -507,19 +508,21 @@ export class ViewerFormlyStepperType extends FieldType<FieldTypeConfig<StepperPr
   }
 
   nextStep(): void {
+    if (this.advancing) return;
     this.refreshStepStateSnapshots();
-    if (this.shouldCompleteAsScreenout(this.currentStep)) {
-      this.completionState = 'completed_screenout';
-      return;
-    }
-
-    if (!this.canGoNext) {
+    if (!this.canGoNext || !this.isStepValid(this.currentStep)) {
       return;
     }
 
     const delayMs = Math.max(0, Number(this.props.navigationDelay ?? 0)) * 1000;
     if (delayMs > 0) {
-      window.setTimeout(() => this.goNextIfAvailable(), delayMs);
+      const step = this.currentStep;
+      this.nextTimer = setTimeout(() => {
+        this.nextTimer = undefined;
+        this.refreshStepStateSnapshots();
+        if (this.currentStep === step) this.goNextIfAvailable();
+        this.cdr.markForCheck();
+      }, delayMs);
       return;
     }
 
@@ -527,6 +530,7 @@ export class ViewerFormlyStepperType extends FieldType<FieldTypeConfig<StepperPr
   }
 
   onStepperSelectionChange(event: StepperSelectionEvent): void {
+    this.cancelNextStep();
     const activeIndex = this.activeStepIndex;
     const visibleIndexes = this.visibleStepIndexes;
     if (activeIndex < 0 || !visibleIndexes.length) {
@@ -587,14 +591,8 @@ export class ViewerFormlyStepperType extends FieldType<FieldTypeConfig<StepperPr
       return;
     }
 
-    if (this.shouldCompleteAsScreenout(this.currentStep)) {
-      this.completionState = 'completed_screenout';
-      return;
-    }
-
-    this.completionState = this.canSaveResponses
-      ? 'completed_saved'
-      : 'completed_preview_not_saved';
+    // Dispatching a submit is not a storage acknowledgement. The host reports its result.
+    this.completionState = this.canSaveResponses ? null : 'completed_preview_not_saved';
   }
 
   goBackToSurvey(): void {
@@ -610,6 +608,12 @@ export class ViewerFormlyStepperType extends FieldType<FieldTypeConfig<StepperPr
 
   ngDoCheck(): void {
     this.refreshStepStateSnapshots();
+  }
+
+  ngOnDestroy(): void { this.cancelNextStep(); }
+  private cancelNextStep(): void {
+    if (this.nextTimer !== undefined) clearTimeout(this.nextTimer);
+    this.nextTimer = undefined;
   }
 
   @HostListener('window:resize')
@@ -662,7 +666,7 @@ export class ViewerFormlyStepperType extends FieldType<FieldTypeConfig<StepperPr
 
   private goNextIfAvailable(): void {
     this.refreshStepStateSnapshots();
-    if (!this.canGoNext) {
+    if (!this.canGoNext || !this.isStepValid(this.currentStep)) {
       return;
     }
     const activeIndex = this.activeStepIndex;
@@ -794,7 +798,7 @@ export class ViewerFormlyStepperType extends FieldType<FieldTypeConfig<StepperPr
   }
 
   private isMissingErrorKey(errorKey: string): boolean {
-    return errorKey === 'required' || errorKey === 'completeAll' || errorKey === 'minAnswers';
+    return errorKey === 'required' || errorKey === 'completeAll' || errorKey === 'minSelections';
   }
 
   private resolveErrorMessage(field: FormlyFieldConfig, errorKey: string, errorValue: unknown): string {
@@ -828,6 +832,9 @@ export class ViewerFormlyStepperType extends FieldType<FieldTypeConfig<StepperPr
     }
 
     const normalizedErrorKey = this.normalizeErrorKey(errorKey);
+    if (normalizedErrorKey === 'matrixCells') return this.validationDictionary.matrixCells;
+    if (normalizedErrorKey === 'minSelections') return this.validationDictionary.minSelections(Number(field.props?.['minSelections'] ?? 0));
+    if (normalizedErrorKey === 'maxSelections') return this.validationDictionary.maxSelections(Number(field.props?.['maxSelections'] ?? 0));
     const dictionary = this.validationDictionary;
     if (normalizedErrorKey === 'required') {
       return dictionary.required;
@@ -858,18 +865,6 @@ export class ViewerFormlyStepperType extends FieldType<FieldTypeConfig<StepperPr
     if (normalizedErrorKey === 'pattern') {
       return dictionary.pattern;
     }
-    if (normalizedErrorKey === 'minAnswers') {
-      const minAnswers = Number((errorValue as { minAnswers?: unknown; requiredMinAnswers?: unknown } | null | undefined)?.minAnswers
-        ?? (errorValue as { requiredMinAnswers?: unknown } | null | undefined)?.requiredMinAnswers
-        ?? 0);
-      return dictionary.minAnswers(Number.isNaN(minAnswers) ? 0 : minAnswers);
-    }
-    if (normalizedErrorKey === 'maxAnswers') {
-      const maxAnswers = Number((errorValue as { maxAnswers?: unknown; allowedMaxAnswers?: unknown } | null | undefined)?.maxAnswers
-        ?? (errorValue as { allowedMaxAnswers?: unknown } | null | undefined)?.allowedMaxAnswers
-        ?? 0);
-      return dictionary.maxAnswers(Number.isNaN(maxAnswers) ? 0 : maxAnswers);
-    }
     if (normalizedErrorKey === 'completeAll') {
       return dictionary.completeAll;
     }
@@ -898,78 +893,6 @@ export class ViewerFormlyStepperType extends FieldType<FieldTypeConfig<StepperPr
     return errorKey;
   }
 
-  private shouldCompleteAsScreenout(step: FormlyFieldConfig | null): boolean {
-    if (!step) {
-      return false;
-    }
-
-    const selectedLabels = this.collectSelectedOptionLabels(step).map((label) => this.normalizeText(label));
-    if (!selectedLabels.length) {
-      return false;
-    }
-
-    const screenoutKeywords = [
-      'no acepto participar',
-      'no acepto',
-      'i do not accept to participate',
-      'i do not agree to participate',
-      'i do not accept',
-    ];
-
-    return selectedLabels.some((label) => screenoutKeywords.some((keyword) => label.includes(keyword)));
-  }
-
-  private collectSelectedOptionLabels(field: FormlyFieldConfig | null | undefined): string[] {
-    if (!field || field.hide) {
-      return [];
-    }
-
-    if (Array.isArray(field.fieldGroup) && field.fieldGroup.length > 0) {
-      return field.fieldGroup.reduce<string[]>(
-        (labels, child) => labels.concat(this.collectSelectedOptionLabels(child)),
-        [],
-      );
-    }
-
-    const options = Array.isArray(field.props?.['options']) ? (field.props?.['options'] as Array<Record<string, unknown>>) : [];
-    if (!options.length || !field.formControl || field.formControl.disabled) {
-      return [];
-    }
-
-    const selected = field.formControl.value;
-    const selectedValues = Array.isArray(selected)
-      ? selected.map((value) => this.normalizeText(`${value ?? ''}`))
-      : [this.normalizeText(`${selected ?? ''}`)];
-
-    return options
-      .filter((option, index) => selectedValues.includes(this.resolveOptionValue(option, index)))
-      .map((option) => `${option['label'] ?? ''}`.trim())
-      .filter((label) => !!label);
-  }
-
-  private resolveOptionValue(option: Record<string, unknown>, index: number): string {
-    const preferred = this.normalizeText(`${option['value'] ?? ''}`);
-    if (preferred) {
-      return preferred;
-    }
-
-    const byCode = this.normalizeText(`${option['code'] ?? ''}`);
-    if (byCode) {
-      return byCode;
-    }
-
-    const byLabel = this.normalizeText(`${option['label'] ?? ''}`);
-    if (byLabel) {
-      return byLabel;
-    }
-
-    return `option_${index + 1}`;
-  }
-
-  private normalizeText(value: string): string {
-    return `${value ?? ''}`.trim().toLowerCase();
-  }
-
   private markCurrentStepTouched(step: FormlyFieldConfig | null): void {
     if (!step) {
       return;
@@ -984,7 +907,4 @@ export class ViewerFormlyStepperType extends FieldType<FieldTypeConfig<StepperPr
     }
   }
 
-  private toSafeHtml(value: string | null | undefined): SafeHtml {
-    return this.sanitizer.bypassSecurityTrustHtml(`${value ?? ''}`);
-  }
 }

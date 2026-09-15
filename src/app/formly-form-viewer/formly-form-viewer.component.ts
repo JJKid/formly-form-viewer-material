@@ -2,6 +2,7 @@ import { Component, EventEmitter, Input, OnChanges, OnInit, Output, SimpleChange
 import { FormGroup, ReactiveFormsModule } from '@angular/forms';
 import { FormlyFieldConfig, FormlyFormOptions, FormlyModule } from '@ngx-formly/core';
 import { CommonModule } from '@angular/common';
+import { buildFormlyMatrixValidators, buildFormlySelectionValidators, buildFormlyScalarValidators, removeHiddenMatrixResponses } from 'formly-form-parser';
 import {
   DEFAULT_FORMLY_VIEWER_UI_DICTIONARIES,
   FormlyViewerUiMessagesDictionary,
@@ -12,12 +13,12 @@ import { getFormlyViewerRuntimeI18nConfig } from '../formly-types/formly-viewer-
   selector: 'formly-form-viewer',
   standalone: true,
   template: `
-    <form class="ffv-form" [formGroup]="form" (ngSubmit)="onSubmit()">
-      <div class="ffv-theme" [ngClass]="customFieldClass">
+    <form class="ffv-form" [formGroup]="form" [attr.aria-busy]="submitting" (ngSubmit)="onSubmit()">
+      <fieldset class="ffv-theme" [ngClass]="customFieldClass" [disabled]="submitting">
         <formly-form [form]="form" [fields]="effectiveFields" [model]="model" [options]="options">
         </formly-form>
-      </div>
-      <button class="ffv-submit-button" type="submit" *ngIf="showSubmitButton && !hasStepperLayout">{{ submitLabel }}</button>
+      </fieldset>
+      <button class="ffv-submit-button" type="submit" [disabled]="submitting" *ngIf="showSubmitButton && !hasStepperLayout">{{ submitLabel }}</button>
     </form>
   `,
   imports: [
@@ -32,6 +33,10 @@ import { getFormlyViewerRuntimeI18nConfig } from '../formly-types/formly-viewer-
     }
 
     .ffv-theme {
+      border: 0;
+      margin: 0;
+      padding: 0;
+      min-width: 0;
       --ffv-font-family: Roboto, "Helvetica Neue", Arial, sans-serif;
       --ffv-text-color: #1f2937;
       --ffv-muted-color: #5e6573;
@@ -119,6 +124,8 @@ export class FormlyFormViewerComponent implements OnInit, OnChanges {
   @Input() options: FormlyFormOptions = {};
   @Input() customFieldClass?: string;
   @Input() showSubmitButton = true;
+  /** The host owns persistence; the viewer prevents further edits and submits while it is pending. */
+  @Input() submitting = false;
   @Output() submitForm = new EventEmitter<any>();
   hasStepperLayout = false;
   effectiveFields: FormlyFieldConfig[] = [];
@@ -162,18 +169,16 @@ export class FormlyFormViewerComponent implements OnInit, OnChanges {
   }
 
   ngOnChanges(changes: SimpleChanges): void {
-    if (changes['fields'] && !changes['fields'].firstChange) {
-      this.resetRuntimeState();
-    }
     if (changes['fields']) {
       this.rebuildEffectiveFields();
     }
   }
 
   onSubmit() {
+    if (this.submitting) return;
     this.form.markAllAsTouched();
     if (this.form.valid) {
-      this.submitForm.emit(this.model);
+      this.submitForm.emit(removeHiddenMatrixResponses(this.model, this.effectiveFields));
     }
   }
 
@@ -199,12 +204,6 @@ export class FormlyFormViewerComponent implements OnInit, OnChanges {
     this.hasStepperLayout = this.detectStepper(this.effectiveFields);
   }
 
-  private resetRuntimeState(): void {
-    this.form = new FormGroup({});
-    this.model = {};
-    this.options = {};
-  }
-
   private withLocaleAndWrappers(fields: FormlyFieldConfig[] | null | undefined, locale: string): FormlyFieldConfig[] {
     if (!Array.isArray(fields)) {
       return [];
@@ -215,12 +214,19 @@ export class FormlyFormViewerComponent implements OnInit, OnChanges {
 
   private cloneField(field: FormlyFieldConfig, locale: string): FormlyFieldConfig {
     const typeName = this.normalizeTypeName(typeof field.type === 'string' ? field.type : '');
+    const props = this.buildNormalizedProps(field, typeName, locale);
     const cloned: FormlyFieldConfig = {
       ...field,
       type: typeName || field.type,
       wrappers: this.resolveEffectiveWrappers(typeName, field.wrappers),
-      props: this.buildNormalizedProps(field, typeName, locale),
-      validators: this.sanitizeValidatorBag(field.validators),
+      props,
+      // JSON publications retain limits in props, not executable validator functions.
+      validators: {
+        ...this.sanitizeValidatorBag(field.validators),
+        ...buildFormlySelectionValidators(props),
+        ...buildFormlyMatrixValidators(props),
+        ...buildFormlyScalarValidators(props),
+      },
       asyncValidators: this.sanitizeValidatorBag(field.asyncValidators),
     };
 

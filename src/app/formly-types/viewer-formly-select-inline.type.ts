@@ -7,6 +7,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatRadioModule } from '@angular/material/radio';
 import { MATERIAL_WRAPPED_FIELD_DEFAULT_OPTIONS } from './material-wrapper-default-options';
+import type { SurveyStructureOtherResponse, SurveyStructureResponseEncoding } from 'survey-structure';
 
 interface SelectInlineOption {
   code?: string;
@@ -25,6 +26,10 @@ interface SelectInlineProps extends FormlyFieldProps {
   options?: SelectInlineOption[];
   otherWithComment?: boolean;
   otherPlaceholder?: string;
+  otherResponse?: SurveyStructureOtherResponse;
+  responseEncoding?: SurveyStructureResponseEncoding;
+  commentWithSelection?: boolean;
+  commentPlaceholder?: string;
 }
 
 @Component({
@@ -78,6 +83,12 @@ interface SelectInlineProps extends FormlyFieldProps {
           (input)="updateOtherComment(toText($any($event.target).value))"
         />
       </mat-form-field>
+      <mat-form-field class="ffu-other" appearance="outline" subscriptSizing="dynamic" *ngIf="props.commentWithSelection">
+        <mat-label>{{ selectionCommentLabel }}</mat-label>
+        <input matInput type="text" [disabled]="formControl.disabled" [value]="selectionComment"
+          [placeholder]="props.commentPlaceholder ?? selectionCommentLabel"
+          (input)="updateSelectionComment(toText($any($event.target).value))" />
+      </mat-form-field>
     </section>
   `,
   styles: [
@@ -112,8 +123,7 @@ interface SelectInlineProps extends FormlyFieldProps {
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ViewerFormlySelectInlineType extends FieldType<FieldTypeConfig<SelectInlineProps>> implements OnInit {
-  private readonly otherOptionCode = 'OTHER';
-  private readonly otherCommentSuffix = '__otherComment';
+  private get otherOptionCode(): string { return this.props.otherResponse?.code ?? '-oth-'; }
   override defaultOptions = MATERIAL_WRAPPED_FIELD_DEFAULT_OPTIONS;
 
   ngOnInit(): void {
@@ -174,6 +184,16 @@ export class ViewerFormlySelectInlineType extends FieldType<FieldTypeConfig<Sele
     return this.toText((this.model as Record<string, unknown>)[key]);
   }
 
+  get selectionCommentLabel(): string { return this.resolveLanguage() === 'es' ? 'Comentario' : 'Comment'; }
+  get selectionComment(): string { return this.toText(this.model?.[`${this.fieldKey}_comment`]); }
+  updateSelectionComment(value: string): void {
+    if (!this.fieldKey || !this.model || !this.props.commentWithSelection || this.formControl.disabled) return;
+    this.model[`${this.fieldKey}_comment`] = value;
+    this.formControl.markAsDirty();
+    this.formControl.markAsTouched();
+    this.formControl.updateValueAndValidity();
+  }
+
   isMultipleChecked(optionValue: string): boolean {
     return this.selectedValues.includes(optionValue);
   }
@@ -184,6 +204,11 @@ export class ViewerFormlySelectInlineType extends FieldType<FieldTypeConfig<Sele
       : this.selectedValues.filter((value) => value !== optionValue);
 
     this.formControl.setValue(nextValues);
+    this.selectOptions.forEach((option, index) => {
+      const code = this.resolveOptionValue(option, index);
+      if (this.model && this.fieldKey && code !== this.otherOptionCode) this.model[`${this.fieldKey}_${code}`] = nextValues.includes(code)
+        ? this.props.responseEncoding?.selectedValue ?? true : this.props.responseEncoding?.unselectedValue ?? false;
+    });
     if (!checked && this.isOtherValue(optionValue)) {
       this.updateOtherComment('');
     }
@@ -202,6 +227,9 @@ export class ViewerFormlySelectInlineType extends FieldType<FieldTypeConfig<Sele
       return;
     }
     (this.model as Record<string, unknown>)[key] = value;
+    this.formControl.markAsDirty();
+    this.formControl.markAsTouched();
+    this.formControl.updateValueAndValidity();
   }
 
   readonly trackByOption = (index: number, option: SelectInlineOption): string => this.resolveOptionValue(option, index);
@@ -250,13 +278,13 @@ export class ViewerFormlySelectInlineType extends FieldType<FieldTypeConfig<Sele
   }
 
   private resolveOtherCommentModelKey(): string | null {
-    if (typeof this.field.key === 'string') {
-      return `${this.field.key}${this.otherCommentSuffix}`;
-    }
-    if (typeof this.field.key === 'number') {
-      return `${String(this.field.key)}${this.otherCommentSuffix}`;
-    }
-    return null;
+    return this.props.otherResponse?.textResponseKey ?? (this.fieldKey ? `${this.fieldKey}_OTHER_value` : null);
+  }
+
+  private get fieldKey(): string | null {
+    const key = this.field.key;
+    if (Array.isArray(key)) return key.length === 1 ? String(key[0]) : null;
+    return typeof key === 'string' || typeof key === 'number' ? String(key) : null;
   }
 
   private resolveLanguage(): 'es' | 'en' {

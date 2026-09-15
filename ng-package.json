@@ -3,5 +3,10 @@
   "dest": "dist/formly-form-viewer-material",
   "lib": {
     "entryFile": "src/public-api.ts"
-  }
+  },
+  "allowedNonPeerDependencies": [
+    "formly-form-parser",
+    "survey-structure"
+  ],
+  "assets": ["README.es.md"]
 }

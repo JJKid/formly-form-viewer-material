@@ -1,6 +1,6 @@
 {
   "name": "formly-form-viewer-material",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "author": "Juan Jose Arroyo Rivera",
   "description": "Standalone component to render a customizable FormlyForm",
   "repository": {
@@ -21,50 +21,58 @@
     "prepublishOnly": "npm run build:verified"
   },
   "peerDependencies": {
-    "@angular/cdk": "^19.2.19",
-    "@angular/common": "^19.2.25",
-    "@angular/core": "^19.2.25",
-    "@angular/forms": "^19.2.25",
-    "@angular/material": "^19.2.19",
-    "@angular/platform-browser": "^19.2.25",
-    "@ngx-formly/core": "^7.0.1",
-    "@ngx-formly/material": "^7.0.1"
+    "@angular/cdk": "^20.2.14",
+    "@angular/common": "^20.3.31",
+    "@angular/core": "^20.3.31",
+    "@angular/forms": "^20.3.31",
+    "@angular/material": "^20.2.14",
+    "@angular/platform-browser": "^20.3.31",
+    "@ngx-formly/core": "^7.1.0",
+    "@ngx-formly/material": "^7.1.0"
   },
   "dependencies": {
-    "tslib": "^2.3.0"
+    "tslib": "^2.3.0",
+    "formly-form-parser": "2.0.0",
+    "survey-structure": "3.0.0"
   },
   "devDependencies": {
-    "@angular-devkit/build-angular": "^19.2.19",
-    "@angular-eslint/builder": "^19.2.1",
-    "@angular-eslint/eslint-plugin": "^19.2.1",
-    "@angular-eslint/eslint-plugin-template": "^19.2.1",
-    "@angular-eslint/schematics": "^19.2.1",
-    "@angular-eslint/template-parser": "^19.2.1",
-    "@angular/animations": "^19.2.25",
-    "@angular/cli": "^19.2.25",
-    "@angular/common": "^19.2.25",
-    "@angular/compiler": "^19.2.25",
-    "@angular/compiler-cli": "^19.2.25",
-    "@angular/core": "^19.2.25",
-    "@angular/language-service": "^19.2.25",
-    "@angular/platform-browser": "^19.2.25",
-    "@angular/platform-browser-dynamic": "^19.2.25",
+    "zone.js": "~0.15.1",
+    "@angular-devkit/build-angular": "20.3.37",
+    "@angular-eslint/builder": "20.7.0",
+    "@angular-eslint/eslint-plugin": "20.7.0",
+    "@angular-eslint/eslint-plugin-template": "20.7.0",
+    "@angular-eslint/schematics": "20.7.0",
+    "@angular-eslint/template-parser": "20.7.0",
+    "@angular/animations": "^20.3.31",
+    "@angular/cli": "^20.3.37",
+    "@angular/common": "^20.3.31",
+    "@angular/compiler": "^20.3.31",
+    "@angular/compiler-cli": "^20.3.31",
+    "@angular/core": "^20.3.31",
+    "@angular/language-service": "^20.3.31",
+    "@angular/platform-browser": "^20.3.31",
+    "@angular/platform-browser-dynamic": "^20.3.31",
     "@types/jasmine": "~5.1.0",
-    "@typescript-eslint/eslint-plugin": "^6.0.0",
-    "@typescript-eslint/parser": "^6.0.0",
+    "@typescript-eslint/eslint-plugin": "8.70.0",
+    "@typescript-eslint/parser": "8.70.0",
     "eslint": "^8.57.0",
-    "eslint-plugin-import": "^2.29.1",
-    "eslint-plugin-jsdoc": "^48.2.1",
-    "eslint-plugin-prefer-arrow": "1.2.2",
     "jasmine-core": "~5.1.0",
-    "jasmine-spec-reporter": "~5.0.0",
     "karma": "~6.4.0",
     "karma-chrome-launcher": "~3.2.0",
     "karma-coverage": "~2.2.0",
     "karma-jasmine": "~5.1.0",
     "karma-jasmine-html-reporter": "~2.1.0",
-    "ng-packagr": "^19.2.0",
-    "typescript": "~5.6.3"
+    "ng-packagr": "20.3.2",
+    "typescript": "5.9.3"
   },
-  "homepage": "https://github.com/JJKid/formly-form-viewer-material"
+  "homepage": "https://github.com/JJKid/formly-form-viewer-material",
+  "overrides": {
+    "rollup-plugin-dts": "6.4.1",
+    "uuid": "11.1.1",
+    "qs": "6.16.0"
+  },
+  "engines": {
+    "node": "^20.19.0 || ^22.12.0 || ^24.0.0"
+  },
+  "license": "MIT"
 }

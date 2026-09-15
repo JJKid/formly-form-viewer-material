@@ -16,9 +16,10 @@ export interface FormlyViewerValidationMessagesDictionary {
   email: string;
   pattern: string;
   numericFormat: string;
-  minAnswers: (minAnswers: number) => string;
-  maxAnswers: (maxAnswers: number) => string;
+  minSelections: (minSelections: number) => string;
+  maxSelections: (maxSelections: number) => string;
   completeAll: string;
+  matrixCells: string;
   minValue: (minValue: number) => string;
   maxValue: (maxValue: number) => string;
   integerOnly: string;
@@ -57,9 +58,10 @@ export const DEFAULT_FORMLY_VIEWER_I18N_VALIDATION_DICTIONARIES: Record<
     email: 'Please enter a valid email address',
     pattern: 'The entered value does not match the required format',
     numericFormat: 'Enter a valid number',
-    minAnswers: (minAnswers) => `Please select at least ${minAnswers} answers`,
-    maxAnswers: (maxAnswers) => `You can select up to ${maxAnswers} answers`,
+    minSelections: (minSelections) => `Please select at least ${minSelections} answers`,
+    maxSelections: (maxSelections) => `You can select up to ${maxSelections} answers`,
     completeAll: 'Please complete all fields',
+    matrixCells: 'Check the matrix answers and their permitted values',
     minValue: (minValue) => `Please enter a value greater than or equal to ${minValue}`,
     maxValue: (maxValue) => `Please enter a value lower than or equal to ${maxValue}`,
     integerOnly: 'Please enter a whole number',
@@ -73,9 +75,10 @@ export const DEFAULT_FORMLY_VIEWER_I18N_VALIDATION_DICTIONARIES: Record<
     email: 'Ingresa un correo electrónico válido',
     pattern: 'El valor ingresado no cumple el formato requerido',
     numericFormat: 'Ingresa un número válido',
-    minAnswers: (minAnswers) => `Selecciona al menos ${minAnswers} respuestas`,
-    maxAnswers: (maxAnswers) => `Puedes seleccionar hasta ${maxAnswers} respuestas`,
+    minSelections: (minSelections) => `Selecciona al menos ${minSelections} respuestas`,
+    maxSelections: (maxSelections) => `Puedes seleccionar hasta ${maxSelections} respuestas`,
     completeAll: 'Completa todos los campos',
+    matrixCells: 'Revisa las respuestas de la matriz y sus valores permitidos',
     minValue: (minValue) => `Ingresa un valor mayor o igual a ${minValue}`,
     maxValue: (maxValue) => `Ingresa un valor menor o igual a ${maxValue}`,
     integerOnly: 'Ingresa un número entero',
@@ -146,20 +149,6 @@ function isFilledValue(value: unknown): boolean {
   return true;
 }
 
-function countSelectedAnswers(value: unknown): number {
-  if (value == null) {
-    return 0;
-  }
-  if (Array.isArray(value)) {
-    return value.filter((item) => isFilledValue(item)).length;
-  }
-  if (typeof value === 'object') {
-    return Object.values(value as Record<string, unknown>)
-      .reduce<number>((total, current) => total + (isFilledValue(current) ? 1 : 0), 0);
-  }
-  return isFilledValue(value) ? 1 : 0;
-}
-
 type ViewerValidator = (
   control: AbstractControl,
   field?: FormlyFieldConfig,
@@ -188,30 +177,6 @@ const completeAllValidator: ViewerValidator = (control) => {
     return false;
   }
   return isFilledValue(value);
-};
-
-const minAnswersValidator: ViewerValidator = (control, field, options) => {
-  const requiredMinAnswers = toFiniteNumber(
-    options?.['minAnswers']
-    ?? options?.['requiredMinAnswers']
-    ?? field?.props?.['minAnswers'],
-  );
-  if (requiredMinAnswers == null) {
-    return true;
-  }
-  return countSelectedAnswers(control?.value) >= requiredMinAnswers;
-};
-
-const maxAnswersValidator: ViewerValidator = (control, field, options) => {
-  const allowedMaxAnswers = toFiniteNumber(
-    options?.['maxAnswers']
-    ?? options?.['allowedMaxAnswers']
-    ?? field?.props?.['maxAnswers'],
-  );
-  if (allowedMaxAnswers == null) {
-    return true;
-  }
-  return countSelectedAnswers(control?.value) <= allowedMaxAnswers;
 };
 
 const minValueValidator: ViewerValidator = (control, field, options) => {
@@ -363,13 +328,12 @@ export function withFormlyViewerI18n(
     validators: [
       { name: 'numericFormat', validation: asFormlyValidation(numericFormatValidator) },
       { name: 'completeAll', validation: asFormlyValidation(completeAllValidator) },
-      { name: 'minAnswers', validation: asFormlyValidation(minAnswersValidator) },
-      { name: 'maxAnswers', validation: asFormlyValidation(maxAnswersValidator) },
       { name: 'minValue', validation: asFormlyValidation(minValueValidator) },
       { name: 'maxValue', validation: asFormlyValidation(maxValueValidator) },
       { name: 'integerOnly', validation: asFormlyValidation(integerOnlyValidator) },
     ],
     validationMessages: [
+      { name: 'matrixCells', message: (_error: unknown, field: FormlyFieldConfig) => getDictionary(field).matrixCells },
       {
         name: 'required',
         message: (_error: unknown, field: FormlyFieldConfig) => getDictionary(field).required,
@@ -415,17 +379,17 @@ export function withFormlyViewerI18n(
         message: (_error: unknown, field: FormlyFieldConfig) => getDictionary(field).numericFormat,
       },
       {
-        name: 'minAnswers',
+        name: 'minSelections',
         message: (error: any, field: FormlyFieldConfig) => {
-          const minAnswers = toNumber(error?.minAnswers ?? error?.requiredMinAnswers);
-          return getDictionary(field).minAnswers(minAnswers);
+          const minSelections = toNumber(field.props?.['minSelections']);
+          return getDictionary(field).minSelections(minSelections);
         },
       },
       {
-        name: 'maxAnswers',
+        name: 'maxSelections',
         message: (error: any, field: FormlyFieldConfig) => {
-          const maxAnswers = toNumber(error?.maxAnswers ?? error?.allowedMaxAnswers);
-          return getDictionary(field).maxAnswers(maxAnswers);
+          const maxSelections = toNumber(field.props?.['maxSelections']);
+          return getDictionary(field).maxSelections(maxSelections);
         },
       },
       {
